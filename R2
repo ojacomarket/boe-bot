@@ -1,0 +1,421 @@
+/* Includes -------------------------------------------------- */
+#include <Servo.h>
+
+/* Defines ------------------------------------------------------------------ */
+#define button_pin      2
+#define sonic_echo_pin  3
+#define sonic_trig_pin  4
+#define right_servo_pin 5
+#define left_servo_pin  6
+#define right_led       7
+#define left_led        8
+#define ir_receiver     A3
+#define min_pulse       1300
+#define max_pulse       1700
+#define standstill      1500
+
+/* Global variables ------------------------------------------ */
+Servo g_left_wheel;
+Servo g_right_wheel;
+signed int g_ir_buf[32]; // infrared data buffer
+signed int g_ir_index = 0; // infrared loop counter variable
+bool g_online = false;
+unsigned long g_last_command;
+float g_distance_in_cm = 0;
+bool g_repeat = true;
+byte g_pin_states[] = {0, 0};
+int start = 0; // will store value 1 or 0, depending on SUCCEEDED encoding from remote signal (1) or not (0)
+int helper = 0; // will store value 1 or 0, depending on SUCCEEDED encoding from remote signal (1) or not (0). Value is needed to operate inside
+// SECOND while loops and tracking pressed button state (was it pressed or not)
+long duration = 0;
+int turnOn = 0; // even for ON, odd for OFF
+
+void setWheels(int delay_left = 1500, int delay_right = 1500) {
+  g_left_wheel.writeMicroseconds(delay_left);
+  g_right_wheel.writeMicroseconds(delay_right);
+  delay(20);
+}
+
+void setLed(byte value_left = LOW, byte value_right = LOW) {
+  g_pin_states[1] = value_right;
+  digitalWrite(right_led, value_right);
+  g_pin_states[0] = value_left;
+  digitalWrite(left_led, value_left);
+}
+
+float distanceInCm() {
+  digitalWrite(sonic_trig_pin, HIGH); // send signal
+  delayMicroseconds(10); // wait for 10us
+  digitalWrite(sonic_trig_pin, LOW); // dont send signal
+  duration = pulseIn(sonic_echo_pin, HIGH); // receive signal
+  return  (duration / 2) * 0.034; /* we are interested in one way time from sent to object, general equation is path = duration * speed,
+  0.034 = speed of light in cm */
+}
+
+int irReceive () {
+  while (pulseIn(ir_receiver, HIGH) > 4000) { // wait for a start bit
+    for (byte i = 0; i <= 31; i++) {
+      g_ir_buf[i] = pulseIn(ir_receiver, HIGH); // write all the infrared signal data to variable
+    }
+    g_ir_index = 0;
+    for (byte i = 0; i <= 31; i++) {
+      if (g_ir_buf[i] > 1000) {
+        g_ir_buf[i] = 1;
+        g_ir_index++;
+      } else if (g_ir_buf[i] > 0) {
+        g_ir_buf[i] = 0;
+        g_ir_index++;
+      } else {
+      }
+    }
+    if (check()) { // if all bits are properly received
+      return 1;
+    }
+  }
+  return 0; // if erroneous bits occurred
+}
+
+void tagasi (int l, int r) {
+  setWheels(l, r);
+  setLed(HIGH, HIGH);
+  delay(100);
+  setLed();
+  delay(100);
+
+}
+
+void edasi (int l, int r) {
+  setWheels(l, r);
+  setLed(HIGH, HIGH);
+  delay(100);
+  setLed();
+  delay(100);
+
+}
+
+void turnLeft180 () { // 1200 ms is enough to turn around
+  setWheels(1400, 1400);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed();
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed();
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed();
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed();
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed();
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed();
+  delay(100);
+}
+
+void turnLeft90 () { // 400 ms is enough to turn on 90 degrees to the left
+  setWheels(1400, 1480);
+  setLed(HIGH, LOW);
+  delay(50);
+  setLed();
+  delay(50);
+  setLed(HIGH, LOW);
+  delay(50);
+  setLed();
+  delay(50);
+  setLed(HIGH, LOW);
+  delay(50);
+  setLed();
+  delay(50);
+  setLed(HIGH, LOW);
+  delay(50);
+  setLed();
+  delay(50);
+}
+
+void turnRight90 () { // 400 ms is enough to turn on 90 degrees to the right
+  setWheels(1520, 1600);
+  setLed(LOW, HIGH);
+  delay(50);
+  setLed();
+  delay(50);
+  setLed(LOW, HIGH);
+  delay(50);
+  setLed();
+  delay(50);
+  setLed(LOW, HIGH);
+  delay(50);
+  setLed();
+  delay(50);
+  setLed(LOW, HIGH);
+  delay(50);
+  setLed();
+  delay(50);
+}
+
+void drive15cmForward() { // 900 ms is enough to drive 15 cm forward
+  setWheels(1600, 1400);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setWheels();
+}
+
+void drive15cmBackward() { // 900 ms is enough to drive 15 cm back
+  setWheels(1400, 1600);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setLed(LOW, HIGH);
+  delay(100);
+  setLed(HIGH, LOW);
+  delay(100);
+  setWheels();
+}
+
+bool check() { // check the received bits
+  int track = 0;
+  for (byte i = 16; i <= 23; i++) {
+    if (g_ir_buf[i] != g_ir_buf[i + 8]) {
+      /* if inside buffer "i" value is not equal to "i + 8" (encoding trick from 16-23 bit values will be
+        opposite for remaining 24 - 31)*/
+      track++; // track will count, that all 8 bits from "i" sample and 8 bits from "i + 1" sample were succesfully checked
+      Serial.print("Bit ");
+      Serial.print(i);
+      Serial.print(" = ");
+      Serial.print(g_ir_buf[i]);
+      Serial.print(" | ");
+      Serial.println(g_ir_buf[i + 8]);
+      continue;
+    } else {
+      continue; // even if erroneous bit received still proceed looping
+    }
+  }
+  // if all 8 + 8 bits are compared between each other and are opposite to each other, then infrared encoding is correct!
+  if (track == 8) {
+    return 1; // good bits
+  }
+  else {
+    Serial.print("Wrong signal received... Data bits must be 8, received only (");
+    Serial.print(track);
+    Serial.println(") :(");
+    return 0; // error bits
+  }
+}
+
+int buttonPressed () { // each button of remote is encoded from 16 - 31 bit, but 16 and 16 + 1, 17 and 17 + 1, ... 23 and 23 + 8 are encoded uniquely
+  if (g_ir_buf[20] == 0 && g_ir_buf[20 + 8] == 1) { // av/tv OR on/off button were pressed
+    if (g_ir_buf[18] == 0 && g_ir_buf[18 + 8] == 1) {
+      return 1;//onoff
+    } else {
+      return 7;//avtv
+    }
+  } else {
+    if (g_ir_buf[18] == 1 && g_ir_buf[18 + 8] == 0) {
+      return 4;//muted
+    } else if (g_ir_buf[17] == 0 && g_ir_buf[17 + 8] == 1) {
+      if (g_ir_buf[16] == 1 && g_ir_buf[16 + 8] == 0) {
+        return 2;//up
+      } else {
+        return 3;//down
+      }
+    } else {
+      if (g_ir_buf[16] == 0 && g_ir_buf[16 + 8] == 1) {
+        return 5;//left;
+      } else {
+        return 6;//right
+      }
+    }
+  }
+}
+
+/* Arduino functions ---------------------------------------------------------------- */
+void setup() {
+  /* Start serial monitor */
+  Serial.begin(9600);
+  pinMode(ir_receiver, INPUT);
+  pinMode(right_led, OUTPUT);
+  pinMode(left_led, OUTPUT);
+
+  g_left_wheel.attach(left_servo_pin);
+  g_right_wheel.attach(right_servo_pin);
+
+  /* Set the ultrasonic sensor pins */
+  pinMode(sonic_trig_pin, OUTPUT);
+  pinMode(sonic_echo_pin, INPUT);
+  setWheels();
+  setLed();
+  turnOn = 1;
+
+  /* Initiate the end of the setup() function */
+  Serial.println("--- Ardunio ready ---\n");
+}
+
+void loop() {
+  /* Wait until a remote button press is registred */
+  Serial.println("Waiting for orders...");
+  Serial.println("Im standing still...");
+  /*
+     At robot turning ON (using RESET button on motherboard), helper = 0, turnOn = 1, start = 0.
+  */
+  if (helper == 0) {
+    start = irReceive(); // check if button on remote is pressed and is clear signal = 1, if not = 0
+  } else {
+    start = 1;
+    helper = 0;
+  }
+
+  int v = buttonPressed(); // check remote encoding buffer values, in case some button were pressed
+  if (start == 1) { // if clear encoding is readed by IR sensor
+    if (v == 1) { // if ON/OFF button was pressed
+      turnOn++; // make it +1
+    }
+  }
+
+  if (turnOn % 2 == 0) { // if even value, we enter statement. Btw, if turnOn %2 != 0, then no matter which button we press, robot stands still!
+    setLed(HIGH, HIGH);
+    while (start) { // FIRST WHILE: start will change its value if signal is erroneous i.e start = 0
+      v = buttonPressed(); // check buffer for encoding values, maybe there was another button presserd
+      if (v == 4) {
+        Serial.println("Pressed \"Mute\"");
+        while (start) { // SECOND WHILE:  if we entered first "while", we enter this one also
+          helper = irReceive(); // check either remote buttons were pressed
+          if (helper == 0) { // if button wasn't pressed on remote, check distances, which are calculated and stored into variable via ultra sonic
+            g_distance_in_cm = distanceInCm();
+            /**
+               If we are at greater distance than 60 cm from object --> move forward and on 60 cm distance STOP
+               If we are at smaller distance than 45 cm, then move backward until you reach into between 45 cm - 60 cm
+               Why 45 cm? Is because to give robot ability for slowing down without exceed the limits of STOP area
+            */
+            if (g_distance_in_cm > 60.00) {
+              edasi(1600, 1400);
+            } else if (g_distance_in_cm < 45.00) {
+              tagasi(1400, 1600);
+            } else if (g_distance_in_cm >= 45.00 && g_distance_in_cm <= 60.00) {
+              setWheels();
+              start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+              break; // stop looping as goal achieved
+            }
+
+          } else {
+            /* if signal was received, then EXIT SECOND WHILE loop and start to process that signal inside FIRST WHILE loop, so you go back
+              to v = buttonRead()*/
+            start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+            break;
+          }
+        }
+      }
+      else if (v == 6) {
+        Serial.println("Pressed \"Right\""); // drive 15 forth each press, but no longer than 19 cm to object (offsets for slowing down path)
+        while (start) {
+          g_distance_in_cm = distanceInCm();
+          if (g_distance_in_cm > 19.00) {// +4 sensors offset to make space for slowing down
+            drive15cmForward();
+            break;
+          } else if (g_distance_in_cm < 18.00) {// +4 cm sensors offset to make space for slowing down
+            setWheels();
+            delay(50);
+            break;
+          }
+        }
+        start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+        setLed();
+      }
+      else if (v == 5) {
+        Serial.println("Pressed \"Left\""); // drive 15 cm back each press
+        while (start) {
+          g_distance_in_cm = distanceInCm();
+          drive15cmBackward();
+          break;
+        }
+        start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+        setLed();
+      }
+      else if (v == 7) {
+        Serial.println("Pressed \"AVTV\""); // turn around
+        while (start) {
+          turnLeft180();
+          break;
+        }
+        setWheels();
+        setLed();
+        start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+      }
+      else if (v == 2) {
+        Serial.println("Pressed \"UP\""); // turning right
+        while (start) {
+          helper = irReceive();
+          if (helper == 0) {
+            g_distance_in_cm = distanceInCm();
+            if (g_distance_in_cm > 18.00) {
+              edasi(1600, 1400);
+            } else if (g_distance_in_cm < 17.00) {
+              turnRight90();
+            }
+
+          } else {
+            start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+            break;
+          }
+        }
+      }
+      else if (v == 3) {
+        Serial.println("Pressed \"DOWN\""); // turning left
+        while (start) {
+          helper = irReceive();
+          if (helper == 0) {
+            g_distance_in_cm = distanceInCm();
+            if (g_distance_in_cm > 18.00) {
+              edasi(1600, 1400);
+            } else if (g_distance_in_cm < 17.00) {
+              turnLeft90();
+            }
+          } else {
+            start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+            break;
+          }
+        }
+      } else {
+        start = 0; // start = 0 will EXIT from SECOND and FIRST WHILE loop, in order to check maybe there was ON/OFF button pressed
+      }
+    } // keep looping inside FIRST START until another button will be pressed
+  } else { // if ON/OFF pressed value is ODD, then it means, that we turned off our robot
+    setWheels();
+    setLed();
+    start = 0; // exit FIRST WHILE loop
+  }
+}
