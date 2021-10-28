@@ -1,0 +1,136 @@
+/* Includes -------------------------------------------------- */
+#include <Servo.h>
+#include <avr/wdt.h>
+
+/* Defines ------------------------------------------------------------------ */
+#define button_pin      2
+#define right_servo_pin 5
+#define left_servo_pin  6
+#define right_led       7
+#define left_led        8
+#define left_qti        A0
+#define middle_qti      A1
+#define right_qti       A2
+#define min_pulse       1300
+#define max_pulse       1700
+#define standstill      1500
+#define qti_threshold   407
+
+/* Global variables ------------------------------------------ */
+Servo g_left_wheel;
+Servo g_right_wheel;
+int track = 0; // robot's loop counter
+int push = 1; // button pressed counter
+unsigned long g_last_debounce_time = 0; // the last time the output pin was toggled
+unsigned long g_debounce_delay = 50; // the debounce time; increase if the output flickers
+int g_button_state; // the current reading from the input pin
+int g_last_button_state = LOW; // the previous reading from the input pin
+int dark_surface = 0;
+int light_surface = 0;
+
+/* Private functions ------------------------------------------------- */
+byte readQti (byte qti) { // function to read current position on map
+  digitalWrite(qti, HIGH); // send an infrared signal
+  delayMicroseconds(1000); // wait for 1ms, very important!
+  digitalWrite(qti, LOW); // set the pin low again
+  return ( analogRead(qti) > qti_threshold ? 1 : 0); // return the converted result: if analog value more then 100 return 1, else 0
+}
+
+void setWheels(int delay_left = 1500, int delay_right = 1500) {
+  g_left_wheel.writeMicroseconds(delay_left);
+  g_right_wheel.writeMicroseconds(delay_right);
+  delay(20);
+}
+
+void setLed(byte value_left = LOW, byte value_right = LOW) {
+  digitalWrite(right_led, value_right);
+  digitalWrite(left_led, value_left);
+}
+
+byte buttonRead() {
+  int reading = digitalRead(button_pin); // if button is under pressured, reading = 1, if we release button, reading = 0
+  if (reading == 1) {
+    push++; // add 1 to button press tracker
+    delay(10); /* delay is needed to prevent push to increment more than once if normal button press is occurred,
+    however holding button down will still increase value */
+  }
+}
+
+/* Arduino functions ---------------------------------------------------------------- */
+void setup() {
+  /* Start serial monitor */
+  Serial.begin(9600);
+
+  /* Set the pin mode of LED pins as output */
+  pinMode(right_led, OUTPUT);
+  pinMode(left_led, OUTPUT);
+
+  /* Attach servos to digital pins defined earlier */
+  g_left_wheel.attach(left_servo_pin);
+  g_right_wheel.attach(right_servo_pin);
+
+}
+
+/*
+   Boe-Bot Basic Movement
+   Patterns:
+    - Forward = (1550, 1450, 0)
+    - Backward = (1450, 1550, 0)
+    - Left = (1300, 1440, 0)
+    - Right = (1560, 1700, 0)
+*/
+void drive_basic(int left_wheel_puls, int right_wheel_puls, int pause) {
+  setWheels(left_wheel_puls, right_wheel_puls);
+  delay(pause);
+}
+
+void loop() {
+
+  buttonRead();
+  if (push % 2 == 0) {
+    /* at start push = 1, so we don't drive, but once we press, button = 2, after another press 3, 4, 5... Each press makes
+      robot moving or stoping*/
+    drive_basic(1550, 1450, 0);
+    if (track < 2 && readQti(left_qti) && readQti(right_qti)) { // track < 2, left QTi = black, right QTi = black
+      buttonRead(); // inside each if-else statement we are tracking button's state, in order to be able to stop robot any time
+      delay(100);
+      track++; // we passed START line
+      drive_basic(1550, 1450, 0);
+      setLed(HIGH, HIGH);
+      delay(100);
+      setLed();
+      delay(100);
+      setLed(HIGH, HIGH);
+    }
+    else if (track == 2 && readQti(left_qti) && readQti(right_qti)) { // track == 2, left QTi = black, right QTi = black
+      drive_basic(1500, 1500, 0); // second pass is done, STOP!
+      setLed(HIGH, HIGH);
+      track = 0; // reset driving loops
+      push = 1; // set button to initial state
+    }
+    else {
+      if (!readQti(left_qti) && readQti(right_qti)) { // left QTi = white, right QTi = black
+        buttonRead(); // inside each if-else statement we are tracking button's state, in order to be able to stop robot any time
+        drive_basic(1560, 1700, 0);
+        setLed(LOW, HIGH);
+        delay(70);
+        setLed();
+        delay(70);
+        setLed(LOW, HIGH);
+      }
+      else if (readQti(left_qti) && !readQti(right_qti)) { // left QTi = black, right QTi = white
+        buttonRead(); // inside each if-else statement we are tracking button's state, in order to be able to stop robot any time
+        drive_basic(1300, 1440, 0);
+        setLed(HIGH, LOW);
+        delay(70);
+        setLed();
+        delay(70);
+        setLed(HIGH, LOW);
+      }
+    }
+  }
+  else { // if push is ODD number, then robot won't move, push changes from odd to even by single button's press
+    drive_basic(1500, 1500, 0);
+    setLed();
+  }
+}
