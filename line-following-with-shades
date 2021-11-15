@@ -1,0 +1,324 @@
+/* Includes -------------------------------------------------- */
+#include <Servo.h>
+// Define pin 10 for buzzer, you can use any other digital pins (Pin 0-13)
+const int buzzer = A3;
+// Change to 0.5 for a slower version of the song, 1.25 for a faster version
+const float songSpeed = 1.0;
+
+// Defining frequency of each music note
+#define NOTE_C4 262
+#define NOTE_D4 294
+#define NOTE_E4 330
+#define NOTE_F4 349
+#define NOTE_G4 392
+#define NOTE_A4 440
+#define NOTE_B4 494
+#define NOTE_C5 523
+#define NOTE_D5 587
+#define NOTE_E5 659
+#define NOTE_F5 698
+#define NOTE_G5 784
+#define NOTE_A5 880
+#define NOTE_B5 988
+
+// Music notes of the song, 0 is a rest/pulse
+int notes[] = {
+  NOTE_E4, NOTE_G4, NOTE_A4, NOTE_A4, 0,
+  NOTE_A4, NOTE_B4, NOTE_C5, NOTE_C5, 0,
+  NOTE_C5, NOTE_D5, NOTE_B4, NOTE_B4, 0,
+  NOTE_A4, NOTE_G4, NOTE_A4, 0,
+
+  NOTE_E4, NOTE_G4, NOTE_A4, NOTE_A4, 0,
+  NOTE_A4, NOTE_B4, NOTE_C5, NOTE_C5, 0,
+  NOTE_C5, NOTE_D5, NOTE_B4, NOTE_B4, 0,
+  NOTE_A4, NOTE_G4, NOTE_A4, 0,
+
+  NOTE_E4, NOTE_G4, NOTE_A4, NOTE_A4, 0,
+  NOTE_A4, NOTE_C5, NOTE_D5, NOTE_D5, 0,
+  NOTE_D5, NOTE_E5, NOTE_F5, NOTE_F5, 0,
+  NOTE_E5, NOTE_D5, NOTE_E5, NOTE_A4, 0,
+
+  NOTE_A4, NOTE_B4, NOTE_C5, NOTE_C5, 0,
+  NOTE_D5, NOTE_E5, NOTE_A4, 0,
+  NOTE_A4, NOTE_C5, NOTE_B4, NOTE_B4, 0,
+  NOTE_C5, NOTE_A4, NOTE_B4, 0,
+
+  NOTE_A4, NOTE_A4,
+  //Repeat of first part
+  NOTE_A4, NOTE_B4, NOTE_C5, NOTE_C5, 0,
+  NOTE_C5, NOTE_D5, NOTE_B4, NOTE_B4, 0,
+  NOTE_A4, NOTE_G4, NOTE_A4, 0,
+
+  NOTE_E4, NOTE_G4, NOTE_A4, NOTE_A4, 0,
+  NOTE_A4, NOTE_B4, NOTE_C5, NOTE_C5, 0,
+  NOTE_C5, NOTE_D5, NOTE_B4, NOTE_B4, 0,
+  NOTE_A4, NOTE_G4, NOTE_A4, 0,
+
+  NOTE_E4, NOTE_G4, NOTE_A4, NOTE_A4, 0,
+  NOTE_A4, NOTE_C5, NOTE_D5, NOTE_D5, 0,
+  NOTE_D5, NOTE_E5, NOTE_F5, NOTE_F5, 0,
+  NOTE_E5, NOTE_D5, NOTE_E5, NOTE_A4, 0,
+
+  NOTE_A4, NOTE_B4, NOTE_C5, NOTE_C5, 0,
+  NOTE_D5, NOTE_E5, NOTE_A4, 0,
+  NOTE_A4, NOTE_C5, NOTE_B4, NOTE_B4, 0,
+  NOTE_C5, NOTE_A4, NOTE_B4, 0,
+  //End of Repeat
+
+  NOTE_E5, 0, 0, NOTE_F5, 0, 0,
+  NOTE_E5, NOTE_E5, 0, NOTE_G5, 0, NOTE_E5, NOTE_D5, 0, 0,
+  NOTE_D5, 0, 0, NOTE_C5, 0, 0,
+  NOTE_B4, NOTE_C5, 0, NOTE_B4, 0, NOTE_A4,
+
+  NOTE_E5, 0, 0, NOTE_F5, 0, 0,
+  NOTE_E5, NOTE_E5, 0, NOTE_G5, 0, NOTE_E5, NOTE_D5, 0, 0,
+  NOTE_D5, 0, 0, NOTE_C5, 0, 0,
+  NOTE_B4, NOTE_C5, 0, NOTE_B4, 0, NOTE_A4
+};
+
+// Durations (in ms) of each music note of the song
+// Quarter Note is 250 ms when songSpeed = 1.0
+int durations[] = {
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 375, 125,
+
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 375, 125,
+
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 125, 250, 125,
+
+  125, 125, 250, 125, 125,
+  250, 125, 250, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 375, 375,
+
+  250, 125,
+  //Rpeat of First Part
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 375, 125,
+
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 375, 125,
+
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 125, 250, 125,
+
+  125, 125, 250, 125, 125,
+  250, 125, 250, 125,
+  125, 125, 250, 125, 125,
+  125, 125, 375, 375,
+  //End of Repeat
+
+  250, 125, 375, 250, 125, 375,
+  125, 125, 125, 125, 125, 125, 125, 125, 375,
+  250, 125, 375, 250, 125, 375,
+  125, 125, 125, 125, 125, 500,
+
+  250, 125, 375, 250, 125, 375,
+  125, 125, 125, 125, 125, 125, 125, 125, 375,
+  250, 125, 375, 250, 125, 375,
+  125, 125, 125, 125, 125, 500
+};
+/* Defines ------------------------------------------------------------------ */
+#define button_pin      2
+#define right_servo_pin 5
+#define left_servo_pin  6
+#define right_led       7
+#define left_led        8
+#define left_qti        A0
+#define middle_qti      A1
+#define right_qti       A2
+#define min_pulse       1300
+#define max_pulse       1700
+#define standstill      1500
+#define qti_threshold   50 // varies 30 - 150 for light grey <---> white
+
+/* Global variables ------------------------------------------ */
+Servo g_left_wheel;
+Servo g_right_wheel;
+int lap = 0;
+int reset = 0;
+
+unsigned long g_last_debounce_time = 0;  // the last time the output pin was toggled
+unsigned long g_debounce_delay = 50;    // the debounce time; increase if the output flickers
+int g_button_state;             // the current reading from the input pin
+int g_last_button_state = LOW;   // the previous reading from the input pin
+byte lqti = 0;
+byte rqti = 1;
+byte dark = 1;
+byte light = 50;
+byte val = 0;
+long startTime;
+long currentTime;
+long looping;
+
+/* Private functions ------------------------------------------------- */
+byte readQti (byte qti, byte type) {                               // Function to read current position on map
+  digitalWrite(qti, HIGH);                              // Send an infrared signal
+  delayMicroseconds(1000);                               // Wait for 1ms, very important!
+  digitalWrite(qti, LOW); // Set the pin low again
+  if (type) {
+    return analogRead(qti);
+  }
+  else {
+    return ( analogRead(qti) > qti_threshold ? 1 : 0);
+  }// Return the converted result: if analog value more then 100 return 1, else 0
+}
+
+void setWheels(int delay_left = 1500, int delay_right = 1500) {
+  g_left_wheel.writeMicroseconds(delay_left);
+  g_right_wheel.writeMicroseconds(delay_right);
+  //delay(20);
+}
+void setLed(byte value_left = LOW, byte value_right = LOW) {
+  digitalWrite(right_led, value_right);
+  digitalWrite(left_led, value_left);
+}
+
+void drive (int leftWheel = 1500, int rightWheel = 1500) {
+  setWheels(leftWheel, rightWheel);
+}
+
+byte buttonRead() {   // Nupu vajutuse tuvastus koos Debounce funktsiooniga.
+
+  int reading = digitalRead(button_pin);    //Salvesta esialgne nupuvajutus
+  if (reading != g_last_button_state) {     // Kui tuvastati üleminek nupuvajutuse üleminek LOW to HIGh
+    g_last_debounce_time = millis();        // Salvesta start of program time in ms
+  }
+  if ((millis() - g_last_debounce_time) > g_debounce_delay) {
+    if (reading != g_button_state) {
+      g_button_state = reading; // Kui on 50ms hiljem ikka nupp alla vajutatud, siis...
+      if (g_button_state == HIGH) {
+        return 1;
+      }
+    }
+  }
+  g_last_button_state = reading;
+  return 0;
+}
+
+/*void playPirates() {
+
+  const int totalNotes = sizeof(notes) / sizeof(int);
+  // Loop through each note
+  for (int i = 0; i < totalNotes; i++)
+  {
+    const int currentNote = notes[i];
+    float wait = durations[i] / songSpeed;
+    // Play tone if currentNote is not 0 frequency, otherwise pause (noTone)
+    if (currentNote != 0)
+    {
+      tone(buzzer, notes[i], wait); // tone(pin, frequency, duration)
+    }
+    else
+    {
+      noTone(buzzer);
+    }
+    Serial.println(wait);
+    // delay is used to wait for tone to finish playing before moving to next loop
+    delay(wait);
+  }
+}*/
+
+/* Arduino functions ---------------------------------------------------------------- */
+void setup() {
+  /* Start serial monitor */
+  Serial.begin(9600);
+
+  /* Set the pin mode of LED pins as output */
+  pinMode(right_led, OUTPUT);
+  pinMode(left_led, OUTPUT);
+
+  /* Attach servos to digital pins defined earlier */
+  g_left_wheel.attach(left_servo_pin, min_pulse, max_pulse );
+  g_right_wheel.attach(right_servo_pin, min_pulse, max_pulse);
+
+  /* Initiate wheels to standstill */
+  setWheels();
+
+
+  /* Blinking LEDs for test */
+  setLed(HIGH, HIGH);
+  delay(500);
+  setLed();
+  delay(500);
+  startTime = millis();
+
+}
+
+void loop() {
+  while (reset == 0) {      //Kui robot tööle panna, siis jääb ta seisvalt ootama nupuvajutust
+    if (buttonRead() == 1) { // Nupuvajutuse korral seatakse flag "reset" = 1, ja siia while loopi ei ole enam võimalik tagasi tulla
+      reset = 1;
+      // playPirates();
+      break;                // break käsuga väljutakse while loopist.
+    }
+
+  }
+  looping = millis();
+
+  //read middle qti as analog
+  val = readQti(middle_qti, 1);
+
+  if (lap < 1) {
+    // store darkest and brightest values of middle qti, only within very first lap
+    dark = val > dark ? val : dark;
+    light = val > light ? light : qti_threshold;
+  }
+
+  /* Start reading QTI values and adjust wheels accordingly */
+  if (readQti(left_qti, 0) && readQti(right_qti, 0)) {      // two sensors on black band
+    lap++;
+    if (lap == 3) {                                   // Kui 2. ring saab läbi, jääb robot seisma ja jääb ootama uut nupuvajutust.
+      while (1) {
+        drive();
+        setLed(HIGH, HIGH);           // both LEDs are turned on
+        if (buttonRead() == 1) {                        // Nupuvajutuse kontroll roboti uuele sõidule saatmiseks
+          lap = 0;
+          break;
+        }
+      }
+    }
+  }
+
+  else if (readQti(left_qti, 0) && !readQti(right_qti, 0)) { // turn left ::: left sensor on black band, right sensor on white band
+    // time for maneuver is 150 ms
+    if ((looping - startTime) < 150) {
+      lap > 1 ? drive (map(val, light, dark, 1300 * 0.96, 1300), map(val, light, dark, 1300 * 0.96, 1300)) : drive (1300, 1300);
+      // drive(1300, 1300);
+      setLed(HIGH, LOW);
+    }
+    else {
+      startTime = looping;
+    }
+  }
+  else if (!readQti(left_qti, 0) && readQti(right_qti, 0)) { //turn right, left sensor on white band, right sensor on black band
+    if ((looping - startTime) < 150) {
+      lap > 1 ? drive (map(val, light, dark, 1700 * 0.96, 1700), map(val, light, dark, 1700 * 0.96, 1700)) : drive (1700, 1700);
+      // drive(1700, 1700);
+      setLed(LOW, HIGH);
+    }
+
+    else {
+      startTime = looping;
+    }
+  }
+  else {
+    drive(1600, 1400);
+    // when qti sensors are configured to complete 2 bouts, then use, after first round:
+    // drive (map(val, light, dark, 1600 * 0.96, 1600), map(val, light, dark, 1400 * 0.96, 1400));
+    setLed();
+  }
+}
